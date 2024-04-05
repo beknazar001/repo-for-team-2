@@ -2,6 +2,7 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "CloudFormation template for creating VPC with subnets, Application Load Balancer, and Auto Scaling Group"
 #Final Project with VPC, 2 public and 2 private subnets. Auto Scaling Group and Load Balancer.
 #1 EIP, Nat Gateway, Internet Gateway, 2 Route Table. Target Group, Launch Template, Listener.
+#I send this message to Jyldyz eje
 Parameters:
 
   Tag:
