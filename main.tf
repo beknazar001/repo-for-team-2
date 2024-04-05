@@ -128,6 +128,8 @@ module "bastion" {
   subnet_name  = module.google_networks.subnet_name[2]
 }
 
+Its Jyldyz changes
+
 #change 1
 #change 2
 #change 1
