@@ -10,7 +10,7 @@ terraform {
     }
   }
 }
-
+#testing recursive merge from Bermet
 
 # provider "google" {
 #   # credentials = file(var.credentials_file_path)
