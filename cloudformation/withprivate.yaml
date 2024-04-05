@@ -1,0 +1,353 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "My Final Project CloudFormation Template"
+
+Conditions:
+  IsVirginiaRegion: !Equals [!Ref "AWS::Region", "us-east-1"]
+  IsOsakaRegion: !Equals [!Ref "AWS::Region", "ap-northeast-3"]
+
+Parameters:
+  Environment:
+    Type: String
+    Default: "Jyldyz"
+  InstanceType:
+    Type: String
+    Default: "t2.micro"
+    AllowedValues: ["t2.micro", "t3.micro"]
+    Description: "Instance Type for EC2 instances"
+  VpcCIDR:
+    Type: String
+    Default: "10.0.0.0/16"
+    Description: "CIDR block for the VPC"
+
+Mappings:
+  AmiMapping:
+    us-east-1:
+      AmiId: ami-0c101f26f147fa7fd
+    ap-northeast-3:
+      AmiId: ami-0afaa85b51fa5f4b5
+
+  SubnetZones:
+    us-east-1:
+      Zone1: us-east-1a
+      Zone2: us-east-1b  
+    ap-northeast-3:
+      Zone1: ap-northeast-3a
+      Zone2: ap-northeast-3b
+
+Resources:
+  # VPC
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      Tags:
+        - Key: Owner
+          Value: Jyldyz 
+
+  # Public Subnet 1
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: !If
+        - IsVirginiaRegion
+        - "us-east-1a"
+        - !If
+          - IsOsakaRegion
+          - !FindInMap [SubnetZones, ap-northeast-3, Zone1]
+          - "us-east-1a"
+      CidrBlock: "10.0.1.0/24"
+      MapPublicIpOnLaunch: 'true'
+      Tags:
+        - Key: Owner
+          Value: Jyldyz
+
+  # Public Subnet 2
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: !If
+        - IsVirginiaRegion
+        - "us-east-1b"
+        - !If
+          - IsOsakaRegion
+          - !FindInMap [SubnetZones, ap-northeast-3, Zone2]
+          - "us-east-1b"
+      CidrBlock: "10.0.2.0/24"
+      MapPublicIpOnLaunch: 'true'
+      Tags:
+        - Key: Owner
+          Value: Jyldyz        
+
+  # Private Subnet 1
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: !If
+        - IsVirginiaRegion
+        - "us-east-1a"
+        - !If
+          - IsOsakaRegion
+          - !FindInMap [SubnetZones, ap-northeast-3, Zone1]
+          - "us-east-1a"  
+      CidrBlock: "10.0.3.0/24"
+      Tags:
+        - Key: Owner
+          Value: Jyldyz 
+
+  # Private Subnet 2
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: !If
+        - IsVirginiaRegion
+        - "us-east-1b"
+        - !If
+          - IsOsakaRegion
+          - !FindInMap [SubnetZones, ap-northeast-3, Zone2]
+          - "us-east-1b"  
+      CidrBlock: "10.0.4.0/24"
+      Tags:
+        - Key: Owner
+          Value: Jyldyz         
+
+  # Internet Gateway
+  MyInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Owner
+          Value: Jyldyz
+
+  # Attach to Internet Gateway
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref MyInternetGateway 
+
+  # Route Table
+  MyRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Owner
+          Value: Jyldyz
+
+  # Attach to PublicRoute
+  PublicRoute1:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref MyRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref MyInternetGateway
+
+  # PublicSubnet1 Route Table Association
+  SubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref MyRouteTable
+
+  # PublicSubnet2 Route Table Association
+  SubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref MyRouteTable
+
+  # NAT Gateway for Public Subnet 1
+  MyNatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt MyElasticIP1.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Owner
+          Value: Jyldyz
+
+  # Elastic IP for NAT Gateway 1
+  MyElasticIP1:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  # NAT Gateway for Public Subnet 2
+  MyNatGateway2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt MyElasticIP2.AllocationId
+      SubnetId: !Ref PublicSubnet2
+      Tags:
+        - Key: Owner
+          Value: Jyldyz
+
+  # Elastic IP for NAT Gateway 2
+  MyElasticIP2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc      
+
+  # Private Subnet 1 Route Table
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Owner
+          Value: Jyldyz
+  
+  # Route for Private Subnet 1 to NAT Gateway
+  PrivateRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: "0.0.0.0/0"
+      NatGatewayId: !Ref MyNatGateway1
+
+  # Associate Private Subnet 1 Route Table
+  SubnetPrivateRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable1
+
+  # Private Subnet 2 Route Table
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Owner
+          Value: Jyldyz
+  
+  # Route for Private Subnet 2 to NAT Gateway
+  PrivateRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      DestinationCidrBlock: "0.0.0.0/0"
+      NatGatewayId: !Ref MyNatGateway2
+
+  # Associate Private Subnet 2 Route Table
+  SubnetPrivateRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable2   
+
+  # Target Group
+  MyTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: "/"
+      HealthCheckProtocol: HTTP  
+      HealthCheckTimeoutSeconds: 5
+      Name: MyTargetGroup
+      Port: 80
+      Protocol: HTTP  
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Owner
+          Value: Jyldyz
+
+  # Security Group
+  MySecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Security Group
+      GroupName: jyldyz-sg
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        -   CidrIp: 0.0.0.0/0
+            FromPort: 22
+            IpProtocol: tcp
+            ToPort: 22
+        -   CidrIp: 0.0.0.0/0
+            FromPort: 80
+            IpProtocol: tcp
+            ToPort: 80
+      Tags:
+        - Key: Owner
+          Value: Jyldyz
+
+  # Load Balancer
+  MyALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      SecurityGroups: 
+        - !Ref MySecurityGroup
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      Tags:
+        - Key: Owner
+          Value: Jyldyz
+      Type: application 
+
+  # Load Balancer Listener
+  MyLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref MyTargetGroup
+      LoadBalancerArn: !Ref MyALB
+      Port: 80
+      Protocol: HTTP      
+
+  # Launch Template
+  MyLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: "MyLaunchTemplate"
+      LaunchTemplateData:
+        ImageId: !FindInMap [ AmiMapping, !Ref AWS::Region, AmiId ]
+        InstanceType: !Ref InstanceType
+        SecurityGroupIds:
+        - !GetAtt MySecurityGroup.GroupId
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            yum -y update
+            yum -y install httpd
+            echo "<html><body bgcolor=blue><center><h1><p><front color=blue>Hi, Jyldyz! $HOSTNAME</h1></center></body></html>" > /var/www/html/index.html
+            sudo service httpd start
+            chkconfig httpd on
+
+  # Auto Scaling Group
+  MyAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !If
+          - IsVirginiaRegion
+          - !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ] ]
+          - !If
+            - IsOsakaRegion
+            - !Join [ ",", [ !Ref PublicSubnet1, !Ref PublicSubnet2 ] ]
+            - !Join [ ",", [ !Ref PublicSubnet1, !Ref PublicSubnet2 ] ]
+      LaunchTemplate:
+        LaunchTemplateId: !Ref MyLaunchTemplate
+        Version: !GetAtt MyLaunchTemplate.LatestVersionNumber
+      MinSize: 1
+      MaxSize: 3
+      DesiredCapacity: 2
+      TargetGroupARNs:
+        - !Ref MyTargetGroup
+      Tags:
+        - Key: Owner
+          Value: Jyldyz
+          PropagateAtLaunch: 'true'
+
+Outputs:
+  ALBDNSNames:
+    Description: DNS name of the ALB
+    Value: !GetAtt MyALB.DNSName
